@@ -6,7 +6,6 @@
 
 <p align="center">
   <a href="https://github.com/yastorovsky/MehrON/releases/tag/v7.25.47"><img src="https://img.shields.io/badge/download-v7.25.47-green" alt="Download" /></a>
-  <img src="https://img.shields.io/badge/version-v7.25.47-blue" alt="Version" />
   <a href="https://github.com/yastorovsky/MehrON/releases"><img src="https://img.shields.io/github/downloads/yastorovsky/MehrON/total?label=downloads" alt="Downloads" /></a>
   <a href="https://github.com/yastorovsky/MehrON/actions/workflows/build.yml"><img src="https://github.com/yastorovsky/MehrON/actions/workflows/build.yml/badge.svg" alt="Build" /></a>
   <a href="https://github.com/yastorovsky/MehrON/actions/workflows/test.yml"><img src="https://github.com/yastorovsky/MehrON/actions/workflows/test.yml/badge.svg" alt="Tests" /></a>
