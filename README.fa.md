@@ -6,8 +6,12 @@
 
 <p align="center">
   <a href="https://github.com/yastorovsky/MehrON/releases"><img src="https://img.shields.io/github/v/release/yastorovsky/MehrON?include_prereleases&label=download" alt="ریلیز" /></a>
+  <img src="https://img.shields.io/badge/version-v7.25.47-blue" alt="نسخه" />
   <a href="https://github.com/yastorovsky/MehrON/releases"><img src="https://img.shields.io/github/downloads/yastorovsky/MehrON/total?label=downloads" alt="تعداد دانلود" /></a>
+  <a href="https://github.com/yastorovsky/MehrON/actions/workflows/build.yml"><img src="https://github.com/yastorovsky/MehrON/actions/workflows/build.yml/badge.svg" alt="بیلد" /></a>
+  <a href="https://github.com/yastorovsky/MehrON/actions/workflows/test.yml"><img src="https://github.com/yastorovsky/MehrON/actions/workflows/test.yml/badge.svg" alt="تست‌ها" /></a>
   <img src="https://img.shields.io/badge/platform-Windows%20x64-blue" alt="پلتفرم" />
+  <img src="https://img.shields.io/badge/platform-Linux%20x64-orange" alt="لینوکس" />
   <img src="https://img.shields.io/badge/.NET-10.0-purple" alt=".NET 10" />
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-green" alt="لایسنس" /></a>
 </p>
