@@ -1,0 +1,156 @@
+name: Build and Release MehrON macOS
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Release Tag'
+        required: false
+        default: 'v7.25.47-macos'
+
+permissions:
+  contents: write
+
+jobs:
+  build-macos:
+    name: Build macOS (${{ matrix.arch }})
+    strategy:
+      matrix:
+        include:
+          - arch: x64
+            rid: osx-x64
+            xray_asset: Xray-macos-64.zip
+            sing_asset: sing-box-1.14.1-darwin-amd64.tar.gz
+            aether_asset: aether-macos-x86_64.tar.gz
+            mihomo_asset: mihomo-darwin-amd64-compatible-v1.19.31.gz
+            sni_rust_url: https://github.com/therealaleph/sni-spoofing-rust/releases/download/v1.0.2/sni-spoof-rs-macos-amd64
+            sni_go_url: https://github.com/aleskxyz/SNI-Spoofing-Go/releases/download/v0.7.2/sni-spoofing-darwin-amd64
+          - arch: arm64
+            rid: osx-arm64
+            xray_asset: Xray-macos-arm64-v8a.zip
+            sing_asset: sing-box-1.14.1-darwin-arm64.tar.gz
+            aether_asset: aether-macos-arm64.tar.gz
+            mihomo_asset: mihomo-darwin-arm64-v1.19.31.gz
+            sni_rust_url: https://github.com/therealaleph/sni-spoofing-rust/releases/download/v1.0.2/sni-spoof-rs-macos-arm64
+            sni_go_url: https://github.com/aleskxyz/SNI-Spoofing-Go/releases/download/v0.7.2/sni-spoofing-darwin-arm64
+
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Publish MehrON
+        run: |
+          mkdir -p ./dist/MehrON-${{ matrix.arch }}
+          dotnet publish ./v2rayN/v2rayN.Desktop/v2rayN.Desktop.csproj \
+            -c Release \
+            -r ${{ matrix.rid }} \
+            --self-contained true \
+            -p:PublishSingleFile=true \
+            -p:DebugType=none \
+            -p:DebugSymbols=false \
+            -o ./dist/MehrON-${{ matrix.arch }}
+
+      - name: Bundle Cores and Assets
+        run: |
+          DIST_DIR="./dist/MehrON-${{ matrix.arch }}"
+          BIN_DIR="$DIST_DIR/bin"
+          TMP_DIR="/tmp/cores"
+          mkdir -p "$TMP_DIR"
+          mkdir -p "$BIN_DIR/xray" "$BIN_DIR/sing_box" "$BIN_DIR/mihomo" "$BIN_DIR/aether" "$BIN_DIR/sni-spoofing" "$BIN_DIR/srss" "$BIN_DIR/mhr/mhr" "$BIN_DIR/mhr/mhr-cfw"
+
+          # Xray
+          curl -L -s -o "$TMP_DIR/xray.zip" "https://github.com/patterniha/Xray-core/releases/download/v26.9.22/${{ matrix.xray_asset }}"
+          unzip -q "$TMP_DIR/xray.zip" -d "$TMP_DIR/xray"
+          cp -f "$TMP_DIR/xray/xray" "$BIN_DIR/xray/xray"
+          chmod +x "$BIN_DIR/xray/xray"
+
+          # Sing-box
+          curl -L -s -o "$TMP_DIR/sing.tar.gz" "https://github.com/SagerNet/sing-box/releases/download/v1.14.1/${{ matrix.sing_asset }}"
+          tar -xzf "$TMP_DIR/sing.tar.gz" -C "$TMP_DIR"
+          cp -f $(find "$TMP_DIR" -name "sing-box" -type f | head -n 1) "$BIN_DIR/sing_box/sing-box"
+          chmod +x "$BIN_DIR/sing_box/sing-box"
+
+          # Aether
+          curl -L -s -o "$TMP_DIR/aether.tar.gz" "https://github.com/CluvexStudio/Aether/releases/download/v2.1.0/${{ matrix.aether_asset }}"
+          tar -xzf "$TMP_DIR/aether.tar.gz" -C "$TMP_DIR"
+          cp -f $(find "$TMP_DIR" -name "aether" -type f | head -n 1) "$BIN_DIR/aether/aether"
+          chmod +x "$BIN_DIR/aether/aether"
+
+          # Mihomo
+          curl -L -s -o "$TMP_DIR/mihomo.gz" "https://github.com/MetaCubeX/mihomo/releases/download/v1.19.31/${{ matrix.mihomo_asset }}"
+          gzip -d "$TMP_DIR/mihomo.gz"
+          cp -f "$TMP_DIR/mihomo" "$BIN_DIR/mihomo/mihomo"
+          chmod +x "$BIN_DIR/mihomo/mihomo"
+
+          # SNI Spoofing (Rust & Go)
+          curl -L -s -o "$BIN_DIR/sni-spoofing/sni-spoof-rs" "${{ matrix.sni_rust_url }}"
+          chmod 4755 "$BIN_DIR/sni-spoofing/sni-spoof-rs"
+          curl -L -s -o "$BIN_DIR/sni-spoofing/sni-spoofing" "${{ matrix.sni_go_url }}"
+          chmod 4755 "$BIN_DIR/sni-spoofing/sni-spoofing"
+
+          # MHR & Geo
+          cp -rf _upstream_mhr/* "$BIN_DIR/mhr/mhr/"
+          cp -rf _upstream_mhr_cfw/* "$BIN_DIR/mhr/mhr-cfw/"
+          cp -rf _upstream_sni_spoofing/* "$BIN_DIR/sni-spoofing/"
+          curl -L -s -o "$BIN_DIR/geosite.dat" "https://github.com/Chocolate4U/Iran-v2ray-rules/releases/latest/download/geosite.dat"
+          curl -L -s -o "$BIN_DIR/geoip.dat" "https://github.com/Chocolate4U/Iran-v2ray-rules/releases/latest/download/geoip.dat"
+          curl -L -s -o "$BIN_DIR/srss/geosite-category-ir.srs" "https://raw.githubusercontent.com/chocolate4u/Iran-sing-box-rules/rule-set/geosite-category-ir.srs"
+          curl -L -s -o "$BIN_DIR/srss/geoip-ir.srs" "https://raw.githubusercontent.com/chocolate4u/Iran-sing-box-rules/rule-set/geoip-ir.srs"
+          cp -f "$BIN_DIR/geosite.dat" "$BIN_DIR/xray/"
+          cp -f "$BIN_DIR/geoip.dat" "$BIN_DIR/xray/"
+
+      - name: Create .app and Packages (.dmg & .zip)
+        run: |
+          APP_DIR="./dist/MehrON.app"
+          mkdir -p "$APP_DIR/Contents/MacOS"
+          mkdir -p "$APP_DIR/Contents/Resources"
+          cp -rf ./dist/MehrON-${{ matrix.arch }}/* "$APP_DIR/Contents/MacOS/"
+          cp -f "$APP_DIR/Contents/MacOS/v2rayN.icns" "$APP_DIR/Contents/Resources/AppIcon.icns" || true
+          chmod +x "$APP_DIR/Contents/MacOS/MehrON"
+
+          cat > "$APP_DIR/Contents/Info.plist" << 'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>CFBundleDisplayName</key>
+            <string>MehrON</string>
+            <key>CFBundleExecutable</key>
+            <string>MehrON</string>
+            <key>CFBundleIconFile</key>
+            <string>AppIcon</string>
+            <key>CFBundleIdentifier</key>
+            <string>org.mehron.desktop</string>
+            <key>CFBundleName</key>
+            <string>MehrON</string>
+            <key>CFBundlePackageType</key>
+            <string>APPL</string>
+            <key>CFBundleShortVersionString</key>
+            <string>7.25.47</string>
+            <key>LSMinimumSystemVersion</key>
+            <string>12.0</string>
+          </dict>
+          </plist>
+          EOF
+
+          (cd ./dist && zip -q -r -y ../MehrON-macOS-${{ matrix.arch }}.zip MehrON.app)
+          hdiutil create -volname "MehrON-${{ matrix.arch }}" -srcfolder "$APP_DIR" -ov -format UDZO MehrON-macOS-${{ matrix.arch }}.dmg
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.tag_name || 'v7.25.47-macos' }}
+          files: |
+            MehrON-macOS-${{ matrix.arch }}.dmg
+            MehrON-macOS-${{ matrix.arch }}.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
