@@ -3,6 +3,7 @@ namespace ServiceLib.ViewModels;
 public partial class SniSpoofingSettingViewModel : MyReactiveObject, ICloseable
 {
     public const string RustEngineLabel = "Rust ( Recommended )";
+    public const string GoEngineLabel = "Go ( High Performance )";
     public const string PythonEngineLabel = "Python";
 
     public event EventHandler? RequestClose;
@@ -11,7 +12,7 @@ public partial class SniSpoofingSettingViewModel : MyReactiveObject, ICloseable
 
     [Reactive] public partial bool Enabled { get; set; }
     [Reactive] public partial string Engine { get; set; } = RustEngineLabel;
-    public List<string> Engines { get; } = [RustEngineLabel, PythonEngineLabel];
+    public List<string> Engines { get; } = [RustEngineLabel, GoEngineLabel, PythonEngineLabel];
     [Reactive] public partial string ListenHost { get; set; } = "127.0.0.1";
     [Reactive] public partial int ListenPort { get; set; }
     [Reactive] public partial string ConnectIp { get; set; } = string.Empty;
@@ -25,7 +26,12 @@ public partial class SniSpoofingSettingViewModel : MyReactiveObject, ICloseable
         _config = AppManager.Instance.Config;
         _settings = JsonUtils.DeepCopy(_config.SniSpoofingItem);
         Enabled = _settings.Enabled;
-        Engine = _settings.Engine.Equals(PythonEngineLabel, StringComparison.OrdinalIgnoreCase) ? PythonEngineLabel : RustEngineLabel;
+        Engine = _settings.Engine switch
+        {
+            "Go" => GoEngineLabel,
+            "Python" => PythonEngineLabel,
+            _ => RustEngineLabel
+        };
         ListenHost = _settings.ListenHost;
         ListenPort = _settings.ListenPort;
         ConnectIp = _settings.ConnectIp;
@@ -49,7 +55,8 @@ public partial class SniSpoofingSettingViewModel : MyReactiveObject, ICloseable
         }
 
         _settings.Enabled = Enabled;
-        _settings.Engine = Engine.Equals(PythonEngineLabel, StringComparison.OrdinalIgnoreCase) ? PythonEngineLabel : "Rust";
+        _settings.Engine = Engine.StartsWith("Go", StringComparison.OrdinalIgnoreCase) ? "Go"
+            : (Engine.StartsWith("Python", StringComparison.OrdinalIgnoreCase) ? PythonEngineLabel : "Rust");
         _settings.ListenHost = ListenHost.Trim();
         _settings.ListenPort = ListenPort;
         _settings.ConnectIp = ConnectIp.Trim();
@@ -69,16 +76,13 @@ public partial class SniSpoofingSettingViewModel : MyReactiveObject, ICloseable
                 return;
             }
 
-            if (Utils.IsWindows())
+            if (Enabled)
             {
-                if (Enabled && Utils.IsAdministrator())
-                {
-                    _ = SniSpoofingManager.Instance.StartAsync(null, null);
-                }
-                else if (!Enabled)
-                {
-                    _ = SniSpoofingManager.Instance.StopAsync();
-                }
+                _ = SniSpoofingManager.Instance.StartAsync(null, null);
+            }
+            else
+            {
+                _ = SniSpoofingManager.Instance.StopAsync();
             }
 
             RequestClose?.Invoke(this, EventArgs.Empty);

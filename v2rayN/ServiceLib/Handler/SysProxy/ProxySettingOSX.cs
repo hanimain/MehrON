@@ -27,10 +27,10 @@ public static class ProxySettingOSX
         var customSystemProxyScriptPath = AppManager.Instance.Config.SystemProxyItem?.CustomSystemProxyScriptPath;
         var fileName = (customSystemProxyScriptPath.IsNotEmpty() && File.Exists(customSystemProxyScriptPath))
             ? customSystemProxyScriptPath
-            : await FileUtils.CreateLinuxShellFile(_proxySetFileName, EmbedUtils.GetEmbedText(Global.ProxySetOSXShellFileName), false);
+            : await FileUtils.CreateLinuxShellFile(_proxySetFileName, EmbedUtils.GetEmbedText(Global.ProxySetOSXShellFileName), true);
 
-        // TODO: temporarily notify which script is being used
-        NoticeManager.Instance.SendMessage(fileName);
+        // Only notify if debugging or needed
+        // NoticeManager.Instance.SendMessage(fileName);
 
         await Utils.GetCliWrapOutput(fileName, args);
     }

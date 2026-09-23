@@ -185,6 +185,19 @@ public sealed class MhrManager
             }
         }
 
+        if (OperatingSystem.IsMacOS() || OperatingSystem.IsLinux())
+        {
+            var candidates = new[] { "/usr/local/bin/python3", "/opt/homebrew/bin/python3", "/usr/bin/python3" };
+            foreach (var cand in candidates)
+            {
+                if (File.Exists(cand))
+                {
+                    return cand;
+                }
+            }
+            return "python3";
+        }
+
         // Retain PATH lookup for portable and non-Windows installations.
         return "python";
     }

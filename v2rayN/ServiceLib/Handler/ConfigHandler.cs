@@ -195,7 +195,7 @@ public static class ConfigHandler
             MaxConcurrentTry = 4,
         };
         config.SniSpoofingItem ??= new();
-        config.SniSpoofingItem.Engine = config.SniSpoofingItem.Engine is "Python" ? "Python" : "Rust";
+        config.SniSpoofingItem.Engine = config.SniSpoofingItem.Engine is "Python" or "Go" ? config.SniSpoofingItem.Engine : "Rust";
         config.SniSpoofingItem.ListenHost ??= "127.0.0.1";
         config.SniSpoofingItem.ConnectIp ??= string.Empty;
         config.SniSpoofingItem.ListenPort = config.SniSpoofingItem.ListenPort is > 0 and <= 65535

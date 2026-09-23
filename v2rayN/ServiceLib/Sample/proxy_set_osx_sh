@@ -12,8 +12,17 @@ set_proxy() {
         BYPASS_DOMAINS=("")
     fi
 
-    # Get all network service names
-    SERVICES=$(networksetup -listallnetworkservices | grep -v '*')
+    # Get active network service first, fallback to all services
+    CURRENT_DEVICE=$(route get default 2>/dev/null | grep interface | awk '{print $2}')
+    if [ -n "$CURRENT_DEVICE" ]; then
+        ACTIVE_SERVICE=$(networksetup -listnetworkserviceorder 2>/dev/null | grep -B 1 "Device: $CURRENT_DEVICE" | head -n 1 | sed -E 's/^\([0-9]+\) //')
+    fi
+
+    if [ -n "$ACTIVE_SERVICE" ]; then
+        SERVICES="$ACTIVE_SERVICE"
+    else
+        SERVICES=$(networksetup -listallnetworkservices 2>/dev/null | grep -v '*')
+    fi
 
     # Loop through each network service
     echo "$SERVICES" | while read -r SERVICE; do
@@ -36,8 +45,17 @@ set_proxy() {
 
 # Function to disable proxy
 clear_proxy() {
-    # Get all network service names
-    SERVICES=$(networksetup -listallnetworkservices | grep -v '*')
+    # Get active network service first, fallback to all services
+    CURRENT_DEVICE=$(route get default 2>/dev/null | grep interface | awk '{print $2}')
+    if [ -n "$CURRENT_DEVICE" ]; then
+        ACTIVE_SERVICE=$(networksetup -listnetworkserviceorder 2>/dev/null | grep -B 1 "Device: $CURRENT_DEVICE" | head -n 1 | sed -E 's/^\([0-9]+\) //')
+    fi
+
+    if [ -n "$ACTIVE_SERVICE" ]; then
+        SERVICES="$ACTIVE_SERVICE"
+    else
+        SERVICES=$(networksetup -listallnetworkservices 2>/dev/null | grep -v '*')
+    fi
 
     # Loop through each network service
     echo "$SERVICES" | while read -r SERVICE; do

@@ -8,8 +8,9 @@ namespace ServiceLib.Manager;
 public sealed class SniSpoofingManager
 {
     private const string EngineFolder = "sni-spoofing";
-    private const string EngineExe = "sni-spoofing.exe";
-    private const string EngineRustExe = "sni-spoof-rs.exe";
+    private static string EngineExe => Utils.IsWindows() ? "sni-spoofing.exe" : "sni-spoofing-py";
+    private static string EngineRustExe => Utils.IsWindows() ? "sni-spoof-rs.exe" : "sni-spoof-rs";
+    private static string EngineGoExe => Utils.IsWindows() ? "sni-spoof-go.exe" : "sni-spoofing";
     private const string EngineScript = "main.py";
     private static readonly Lazy<SniSpoofingManager> _instance = new(() => new());
     public static SniSpoofingManager Instance => _instance.Value;
@@ -31,11 +32,11 @@ public sealed class SniSpoofingManager
     public static bool IsSupported(ProfileItem? node)
     {
         var setting = AppManager.Instance.Config.SniSpoofingItem;
-        if (!Utils.IsWindows() || !setting.Enabled)
+        if (!setting.Enabled)
         {
             return false;
         }
-        if (!File.Exists(GetRustExePath()) && !File.Exists(GetExePath()) && !File.Exists(GetScriptPath()))
+        if (!File.Exists(GetRustExePath()) && !File.Exists(GetGoExePath()) && !File.Exists(GetExePath()) && !File.Exists(GetScriptPath()))
         {
             return false;
         }
@@ -54,7 +55,7 @@ public sealed class SniSpoofingManager
     public async Task<bool> StartAsync(ProfileItem? node = null, Func<bool, string, Task>? updateFunc = null)
     {
         var setting = AppManager.Instance.Config.SniSpoofingItem;
-        if (!setting.Enabled || !Utils.IsWindows())
+        if (!setting.Enabled)
         {
             await StopAsync();
             return true;
@@ -66,34 +67,45 @@ public sealed class SniSpoofingManager
         }
 
         var rustExePath = GetRustExePath();
+        var goExePath = GetGoExePath();
         var pyExePath = GetExePath();
         var scriptPath = GetScriptPath();
 
-        var wantsRust = !setting.Engine.Equals("Python", StringComparison.OrdinalIgnoreCase);
-        bool useRust;
-        if (wantsRust)
+        var wantsGo = setting.Engine.Equals("Go", StringComparison.OrdinalIgnoreCase);
+        var wantsPython = setting.Engine.Equals("Python", StringComparison.OrdinalIgnoreCase);
+        var wantsRust = !wantsGo && !wantsPython;
+
+        string activeEngine;
+        if (wantsGo)
         {
-            useRust = File.Exists(rustExePath) || (!File.Exists(pyExePath) && !File.Exists(scriptPath));
+            activeEngine = "Go";
+        }
+        else if (wantsPython)
+        {
+            activeEngine = "Python";
         }
         else
         {
-            useRust = !File.Exists(pyExePath) && !File.Exists(scriptPath) && File.Exists(rustExePath);
+            activeEngine = "Rust";
         }
 
-        var activeEngine = useRust ? "Rust" : "Python";
-
-        if (useRust && !File.Exists(rustExePath))
+        if (activeEngine == "Rust" && !File.Exists(rustExePath))
         {
-            await SafeNotifyAsync(updateFunc, true, "Rust SNI Spoofing engine (sni-spoof-rs.exe) was not found in bin/sni-spoofing.");
+            await SafeNotifyAsync(updateFunc, true, $"Rust SNI Spoofing engine ({EngineRustExe}) was not found in bin/sni-spoofing.");
             return false;
         }
-        if (!useRust && !File.Exists(pyExePath) && !File.Exists(scriptPath))
+        if (activeEngine == "Go" && !File.Exists(goExePath))
+        {
+            await SafeNotifyAsync(updateFunc, true, $"Go SNI Spoofing engine ({EngineGoExe}) was not found in bin/sni-spoofing.");
+            return false;
+        }
+        if (activeEngine == "Python" && !File.Exists(pyExePath) && !File.Exists(scriptPath))
         {
             await SafeNotifyAsync(updateFunc, true, "Python SNI Spoofing engine was not found in bin/sni-spoofing.");
             return false;
         }
 
-        if (!Utils.IsAdministrator())
+        if (Utils.IsWindows() && !Utils.IsAdministrator())
         {
             await SafeNotifyAsync(updateFunc, true, "SNI Spoofing requires MehrON to run as administrator. Approve the Windows prompt to continue.");
             if (ProcUtils.RebootAsAdmin())
@@ -132,7 +144,7 @@ public sealed class SniSpoofingManager
         var folder = GetEngineDirectory();
         var configPath = Path.Combine(folder, "config.json");
 
-        if (useRust)
+        if (activeEngine == "Rust")
         {
             var rustConfig = new
             {
@@ -154,6 +166,11 @@ public sealed class SniSpoofingManager
             var content = JsonSerializer.Serialize(rustConfig, new JsonSerializerOptions { WriteIndented = true });
             await File.WriteAllTextAsync(configPath, content);
             _process = new ProcessService(rustExePath, $"\"{configPath}\"", folder, true, false, null, updateFunc);
+        }
+        else if (activeEngine == "Go")
+        {
+            var goArgs = $"-listen \"{setting.ListenHost}:{setting.ListenPort}\" -connect \"{targetIp}:{targetPort}\" -fake-sni \"{setting.FakeSni}\" -utls chrome";
+            _process = new ProcessService(goExePath, goArgs, folder, true, false, null, updateFunc);
         }
         else
         {
@@ -202,8 +219,8 @@ public sealed class SniSpoofingManager
         {
             try
             {
-                var targetExe = useRust ? rustExePath : (File.Exists(pyExePath) ? pyExePath : GetPythonExecutable());
-                var targetArgs = useRust ? $"\"{configPath}\"" : (File.Exists(pyExePath) ? string.Empty : "-X utf8 main.py");
+                var targetExe = activeEngine == "Rust" ? rustExePath : (activeEngine == "Go" ? goExePath : (File.Exists(pyExePath) ? pyExePath : GetPythonExecutable()));
+                var targetArgs = activeEngine == "Rust" ? $"\"{configPath}\"" : (activeEngine == "Go" ? $"-listen \"{setting.ListenHost}:{setting.ListenPort}\" -connect \"{targetIp}:{targetPort}\" -fake-sni \"{setting.FakeSni}\" -utls chrome" : (File.Exists(pyExePath) ? string.Empty : "-X utf8 main.py"));
                 var psi = new ProcessStartInfo
                 {
                     FileName = targetExe,
@@ -307,27 +324,18 @@ public sealed class SniSpoofingManager
 
     private static void KillLingeringProcesses()
     {
-        if (!Utils.IsWindows())
-        {
-            return;
-        }
         try
         {
-            foreach (var p in Process.GetProcessesByName("sni-spoofing"))
+            foreach (var name in new[] { "sni-spoofing", "sni-spoof-rs", "sni-spoofing-py" })
             {
-                try
+                foreach (var p in Process.GetProcessesByName(name))
                 {
-                    p.Kill(true);
+                    try
+                    {
+                        p.Kill(true);
+                    }
+                    catch { }
                 }
-                catch { }
-            }
-            foreach (var p in Process.GetProcessesByName("sni-spoof-rs"))
-            {
-                try
-                {
-                    p.Kill(true);
-                }
-                catch { }
             }
         }
         catch { }
@@ -411,6 +419,7 @@ public sealed class SniSpoofingManager
     private static string GetEngineDirectory() => Utils.GetBinPath(EngineFolder);
     private static string GetExePath() => Path.Combine(GetEngineDirectory(), EngineExe);
     private static string GetRustExePath() => Path.Combine(GetEngineDirectory(), EngineRustExe);
+    private static string GetGoExePath() => Path.Combine(GetEngineDirectory(), EngineGoExe);
     private static string GetScriptPath() => Path.Combine(GetEngineDirectory(), EngineScript);
     private static string GetPythonExecutable()
     {
@@ -444,6 +453,15 @@ public sealed class SniSpoofingManager
                     }
                 }
             }
+        }
+        if (OperatingSystem.IsMacOS() || OperatingSystem.IsLinux())
+        {
+            var candidates = new[] { "/usr/local/bin/python3", "/opt/homebrew/bin/python3", "/usr/bin/python3" };
+            foreach (var cand in candidates)
+            {
+                if (File.Exists(cand)) return cand;
+            }
+            return "python3";
         }
         return "python";
     }
